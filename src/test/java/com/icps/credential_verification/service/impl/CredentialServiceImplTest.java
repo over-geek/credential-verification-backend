@@ -1,6 +1,7 @@
 package com.icps.credential_verification.service.impl;
 
 import com.icps.credential_verification.dto.ChipUidRequestDto;
+import com.icps.credential_verification.dto.CredentialPhotoDto;
 import com.icps.credential_verification.dto.CredentialRequestDto;
 import com.icps.credential_verification.dto.CredentialResponseDto;
 import com.icps.credential_verification.exception.BadRequestException;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,13 +40,20 @@ class CredentialServiceImplTest {
     @Test
     void createCredentialPersistsAndReturnsFullResponseShape() {
         UUID id = UUID.randomUUID();
+        MockMultipartFile photoFile = new MockMultipartFile(
+                "photo",
+                "test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01}
+        );
         CredentialRequestDto request = new CredentialRequestDto(
                 "Ada",
                 "Lovelace",
                 "Computer Science",
                 "ICPS University",
                 "2021 - 2024",
-                "First Class"
+                "First Class",
+                photoFile
         );
 
         when(credentialRepository.existsByQrToken(anyString())).thenReturn(false);
@@ -59,8 +69,58 @@ class CredentialServiceImplTest {
         assertThat(response.chipUid()).isNull();
         assertThat(response.firstName()).isEqualTo("Ada");
         assertThat(response.credentialClass()).isEqualTo("First Class");
+        assertThat(response.hasPhoto()).isTrue();
         verify(credentialRepository).save(any(Credential.class));
         verify(credentialRepository).existsByQrToken(anyString());
+    }
+
+    @Test
+    void createCredentialRejectsEmptyPhoto() {
+        MockMultipartFile emptyPhoto = new MockMultipartFile(
+                "photo",
+                "test.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[0]
+        );
+        CredentialRequestDto request = new CredentialRequestDto(
+                "Ada",
+                "Lovelace",
+                "Computer Science",
+                "ICPS University",
+                "2021 - 2024",
+                "First Class",
+                emptyPhoto
+        );
+
+        assertThatThrownBy(() -> credentialService.createCredential(request))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void getCredentialPhotoReturnsPhotoBytesAndContentType() {
+        UUID id = UUID.randomUUID();
+        Credential credential = credential(id);
+        byte[] pngBytes = new byte[]{(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
+        credential.setPhoto(pngBytes);
+
+        when(credentialRepository.findById(id)).thenReturn(Optional.of(credential));
+
+        CredentialPhotoDto photoDto = credentialService.getCredentialPhoto(id);
+
+        assertThat(photoDto.content()).isEqualTo(pngBytes);
+        assertThat(photoDto.contentType()).isEqualTo(MediaType.IMAGE_PNG_VALUE);
+    }
+
+    @Test
+    void getCredentialPhotoThrowsWhenNoPhotoLinked() {
+        UUID id = UUID.randomUUID();
+        Credential credential = credential(id);
+        credential.setPhoto(null);
+
+        when(credentialRepository.findById(id)).thenReturn(Optional.of(credential));
+
+        assertThatThrownBy(() -> credentialService.getCredentialPhoto(id))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test

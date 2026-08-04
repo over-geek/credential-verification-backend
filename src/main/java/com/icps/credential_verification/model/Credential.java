@@ -39,6 +39,9 @@ public class Credential {
     @Column(name = "class", nullable = false)
     private String credentialClass;
 
+    @Column(name = "photo")
+    private byte[] photo;
+
     @PrePersist
     void assignId() {
         if (id == null) {
@@ -116,5 +119,13 @@ public class Credential {
 
     public void setCredentialClass(String credentialClass) {
         this.credentialClass = credentialClass;
+    }
+
+    public byte[] getPhoto() {
+        return photo;
+    }
+
+    public void setPhoto(byte[] photo) {
+        this.photo = photo;
     }
 }

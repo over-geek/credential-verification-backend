@@ -125,6 +125,10 @@ h2 {
     gap: 14px;
 }
 
+.photo-field {
+    grid-column: 1 / -1;
+}
+
 label {
     display: grid;
     gap: 7px;

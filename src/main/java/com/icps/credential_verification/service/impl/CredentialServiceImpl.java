@@ -1,6 +1,7 @@
 package com.icps.credential_verification.service.impl;
 
 import com.icps.credential_verification.dto.ChipUidRequestDto;
+import com.icps.credential_verification.dto.CredentialPhotoDto;
 import com.icps.credential_verification.dto.CredentialRequestDto;
 import com.icps.credential_verification.dto.CredentialResponseDto;
 import com.icps.credential_verification.exception.BadRequestException;
@@ -9,8 +10,10 @@ import com.icps.credential_verification.exception.ResourceNotFoundException;
 import com.icps.credential_verification.model.Credential;
 import com.icps.credential_verification.repository.CredentialRepository;
 import com.icps.credential_verification.service.CredentialService;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,6 +28,10 @@ public class CredentialServiceImpl implements CredentialService {
 
     @Override
     public CredentialResponseDto createCredential(CredentialRequestDto request) {
+        if (request.photo() == null || request.photo().isEmpty()) {
+            throw new BadRequestException("photo is required and cannot be empty.");
+        }
+
         Credential credential = new Credential();
         credential.setQrToken(generateUniqueQrToken());
         credential.setFirstName(request.firstName());
@@ -33,6 +40,16 @@ public class CredentialServiceImpl implements CredentialService {
         credential.setUniversity(request.university());
         credential.setDuration(request.duration());
         credential.setCredentialClass(request.credentialClass());
+
+        try {
+            byte[] photoBytes = request.photo().getBytes();
+            if (photoBytes.length == 0) {
+                throw new BadRequestException("photo is required and cannot be empty.");
+            }
+            credential.setPhoto(photoBytes);
+        } catch (IOException exception) {
+            throw new BadRequestException("Unable to read photo upload.");
+        }
 
         return toResponse(credentialRepository.save(credential));
     }
@@ -55,6 +72,16 @@ public class CredentialServiceImpl implements CredentialService {
     @Override
     public CredentialResponseDto getCredential(UUID id) {
         return toResponse(findCredential(id));
+    }
+
+    @Override
+    public CredentialPhotoDto getCredentialPhoto(UUID id) {
+        Credential credential = findCredential(id);
+        byte[] photo = credential.getPhoto();
+        if (photo == null || photo.length == 0) {
+            throw new ResourceNotFoundException("Credential photo not found.");
+        }
+        return new CredentialPhotoDto(photo, detectContentType(photo));
     }
 
     @Override
@@ -109,6 +136,34 @@ public class CredentialServiceImpl implements CredentialService {
         return token;
     }
 
+    private String detectContentType(byte[] photo) {
+        if (photo.length >= 4
+                && (photo[0] == (byte) 0x89)
+                && photo[1] == 'P'
+                && photo[2] == 'N'
+                && photo[3] == 'G') {
+            return MediaType.IMAGE_PNG_VALUE;
+        }
+        if (photo.length >= 3
+                && (photo[0] == (byte) 0xFF)
+                && (photo[1] == (byte) 0xD8)
+                && (photo[2] == (byte) 0xFF)) {
+            return MediaType.IMAGE_JPEG_VALUE;
+        }
+        if (photo.length >= 3
+                && photo[0] == 'G'
+                && photo[1] == 'I'
+                && photo[2] == 'F') {
+            return MediaType.IMAGE_GIF_VALUE;
+        }
+        if (photo.length >= 12
+                && photo[0] == 'R' && photo[1] == 'I' && photo[2] == 'F' && photo[3] == 'F'
+                && photo[8] == 'W' && photo[9] == 'E' && photo[10] == 'B' && photo[11] == 'P') {
+            return "image/webp";
+        }
+        return MediaType.IMAGE_JPEG_VALUE;
+    }
+
     private CredentialResponseDto toResponse(Credential credential) {
         return new CredentialResponseDto(
                 credential.getId(),
@@ -118,7 +173,8 @@ public class CredentialServiceImpl implements CredentialService {
                 credential.getCourse(),
                 credential.getUniversity(),
                 credential.getDuration(),
-                credential.getCredentialClass()
+                credential.getCredentialClass(),
+                credential.getPhoto() != null && credential.getPhoto().length > 0
         );
     }
 }

@@ -47,17 +47,10 @@ async function saveCredential(event) {
 
     const data = new FormData(form);
     const chipUid = data.get("chip_uid");
-    const credential = {
-        first_name: data.get("first_name"),
-        last_name: data.get("last_name"),
-        course: data.get("course"),
-        university: data.get("university"),
-        duration: data.get("duration"),
-        class: data.get("class")
-    };
+    data.delete("chip_uid");
 
     try {
-        let saved = await sendJson("/credentials", "POST", credential);
+        let saved = await sendFormData("/credentials", data);
 
         if (chipUid) {
             saved = await sendJson(`/credentials/${saved.id}/chip`, "PATCH", {
@@ -125,6 +118,20 @@ async function sendJson(url, method, body) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify(body)
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+        throw new Error(payload.message || payload.error || "Request failed.");
+    }
+
+    return payload;
+}
+
+async function sendFormData(url, formData) {
+    const response = await fetch(url, {
+        method: "POST",
+        body: formData
     });
     const payload = await response.json();
 

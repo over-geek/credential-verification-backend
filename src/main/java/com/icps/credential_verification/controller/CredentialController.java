@@ -1,7 +1,8 @@
 package com.icps.credential_verification.controller;
 
-import com.icps.credential_verification.dto.ChipUidRequestDto;
 import com.icps.credential_verification.dto.CertificatePdfDto;
+import com.icps.credential_verification.dto.ChipUidRequestDto;
+import com.icps.credential_verification.dto.CredentialPhotoDto;
 import com.icps.credential_verification.dto.CredentialRequestDto;
 import com.icps.credential_verification.dto.CredentialResponseDto;
 import com.icps.credential_verification.service.CertificatePdfService;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,9 +36,9 @@ public class CredentialController {
         this.certificatePdfService = certificatePdfService;
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public CredentialResponseDto createCredential(@RequestBody CredentialRequestDto request) {
+    public CredentialResponseDto createCredential(@ModelAttribute CredentialRequestDto request) {
         return credentialService.createCredential(request);
     }
 
@@ -48,6 +50,15 @@ public class CredentialController {
     @GetMapping("/{id}")
     public CredentialResponseDto getCredential(@PathVariable UUID id) {
         return credentialService.getCredential(id);
+    }
+
+    @GetMapping(value = "/{id}/photo")
+    public ResponseEntity<byte[]> getCredentialPhoto(@PathVariable UUID id) {
+        CredentialPhotoDto photo = credentialService.getCredentialPhoto(id);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(photo.contentType()))
+                .body(photo.content());
     }
 
     @GetMapping("/by-chip/{chipUid}")

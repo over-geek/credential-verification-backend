@@ -1,6 +1,7 @@
 package com.icps.credential_verification.service;
 
 import com.icps.credential_verification.dto.ChipUidRequestDto;
+import com.icps.credential_verification.dto.CredentialPhotoDto;
 import com.icps.credential_verification.dto.CredentialRequestDto;
 import com.icps.credential_verification.dto.CredentialResponseDto;
 
@@ -14,6 +15,8 @@ public interface CredentialService {
     CredentialResponseDto linkChipUid(UUID id, ChipUidRequestDto request);
 
     CredentialResponseDto getCredential(UUID id);
+
+    CredentialPhotoDto getCredentialPhoto(UUID id);
 
     CredentialResponseDto getCredentialByChipUid(String chipUid);
 
