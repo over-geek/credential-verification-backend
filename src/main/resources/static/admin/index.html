@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Credential Admin</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main class="shell">
+    <section class="workspace">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">ICPS Credential Verification</p>
+                <h1>Admin Console</h1>
+            </div>
+            <div class="bridge-status" id="bridgeStatus">Bridge idle</div>
+        </header>
+
+        <section class="panel form-panel" aria-labelledby="formTitle">
+            <div class="section-heading">
+                <h2 id="formTitle">Create Credential</h2>
+                <button class="secondary" type="button" id="resetButton">Clear</button>
+            </div>
+
+            <form id="credentialForm">
+                <div class="field-grid">
+                    <label>
+                        <span>First name</span>
+                        <input name="first_name" autocomplete="given-name" required>
+                    </label>
+                    <label>
+                        <span>Last name</span>
+                        <input name="last_name" autocomplete="family-name" required>
+                    </label>
+                    <label>
+                        <span>Course</span>
+                        <input name="course" required>
+                    </label>
+                    <label>
+                        <span>University</span>
+                        <input name="university" required>
+                    </label>
+                    <label>
+                        <span>Duration</span>
+                        <input name="duration" placeholder="2021 - 2024" required>
+                    </label>
+                    <label>
+                        <span>Class</span>
+                        <input name="class" placeholder="First Class" required>
+                    </label>
+                </div>
+
+                <div class="chip-row">
+                    <label>
+                        <span>Chip UID</span>
+                        <input name="chip_uid" id="chipUid" readonly>
+                    </label>
+                    <button class="secondary" type="button" id="readChipButton">Read Chip</button>
+                </div>
+
+                <div class="actions">
+                    <button class="primary" type="submit" id="saveButton">Save Credential</button>
+                    <p class="status" id="formStatus" role="status"></p>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel list-panel" aria-labelledby="recordsTitle">
+            <div class="section-heading">
+                <h2 id="recordsTitle">Credentials</h2>
+                <button class="secondary" type="button" id="refreshButton">Refresh</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Course</th>
+                        <th>University</th>
+                        <th>Duration</th>
+                        <th>Class</th>
+                        <th>Chip UID</th>
+                        <th>PDF</th>
+                    </tr>
+                    </thead>
+                    <tbody id="credentialRows">
+                    <tr>
+                        <td colspan="7" class="empty">Loading...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </section>
+</main>
+
+<script src="./app.js"></script>
+</body>
+</html>
