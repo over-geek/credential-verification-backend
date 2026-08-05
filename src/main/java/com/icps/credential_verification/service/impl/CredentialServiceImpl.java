@@ -10,6 +10,7 @@ import com.icps.credential_verification.exception.ResourceNotFoundException;
 import com.icps.credential_verification.model.Credential;
 import com.icps.credential_verification.repository.CredentialRepository;
 import com.icps.credential_verification.service.CredentialService;
+import com.icps.credential_verification.service.CryptoService;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +22,11 @@ import java.util.UUID;
 public class CredentialServiceImpl implements CredentialService {
 
     private final CredentialRepository credentialRepository;
+    private final CryptoService cryptoService;
 
-    public CredentialServiceImpl(CredentialRepository credentialRepository) {
+    public CredentialServiceImpl(CredentialRepository credentialRepository, CryptoService cryptoService) {
         this.credentialRepository = credentialRepository;
+        this.cryptoService = cryptoService;
     }
 
     @Override
@@ -40,6 +43,14 @@ public class CredentialServiceImpl implements CredentialService {
         credential.setUniversity(request.university());
         credential.setDuration(request.duration());
         credential.setCredentialClass(request.credentialClass());
+
+        if (request.chipUid() != null && !request.chipUid().isBlank()) {
+            String chipUid = request.chipUid().trim();
+            credentialRepository.findByChipUid(chipUid).ifPresent(existing -> {
+                throw new DuplicateChipUidException("Chip UID is already linked to another credential.");
+            });
+            credential.setChipUid(chipUid);
+        }
 
         try {
             byte[] photoBytes = request.photo().getBytes();
@@ -165,6 +176,26 @@ public class CredentialServiceImpl implements CredentialService {
     }
 
     private CredentialResponseDto toResponse(Credential credential) {
+        String offlinePayload = null;
+        if (credential.getChipUid() != null) {
+            try {
+                String json = String.format(
+                        "{\"id\":\"%s\",\"first_name\":\"%s\",\"last_name\":\"%s\",\"course\":\"%s\",\"university\":\"%s\",\"duration\":\"%s\",\"class\":\"%s\"}",
+                        credential.getId().toString(),
+                        escapeJson(credential.getFirstName()),
+                        escapeJson(credential.getLastName()),
+                        escapeJson(credential.getCourse()),
+                        escapeJson(credential.getUniversity()),
+                        escapeJson(credential.getDuration()),
+                        escapeJson(credential.getCredentialClass())
+                );
+                byte[] encryptedAndSigned = cryptoService.encryptAndSign(json, credential.getChipUid());
+                offlinePayload = java.util.Base64.getEncoder().encodeToString(encryptedAndSigned);
+            } catch (Exception e) {
+                // Ignore for now, offline_payload will be null
+            }
+        }
+
         return new CredentialResponseDto(
                 credential.getId(),
                 credential.getChipUid(),
@@ -174,7 +205,13 @@ public class CredentialServiceImpl implements CredentialService {
                 credential.getUniversity(),
                 credential.getDuration(),
                 credential.getCredentialClass(),
-                credential.getPhoto() != null && credential.getPhoto().length > 0
+                credential.getPhoto() != null && credential.getPhoto().length > 0,
+                offlinePayload
         );
+    }
+
+    private String escapeJson(String input) {
+        if (input == null) return "";
+        return input.replace("\"", "\\\"");
     }
 }
