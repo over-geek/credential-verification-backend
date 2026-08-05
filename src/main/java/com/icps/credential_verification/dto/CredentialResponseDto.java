@@ -13,6 +13,7 @@ public record CredentialResponseDto(
         String university,
         String duration,
         @JsonProperty("class") String credentialClass,
-        @JsonProperty("has_photo") Boolean hasPhoto
+        @JsonProperty("has_photo") Boolean hasPhoto,
+        @JsonProperty("offline_payload") String offlinePayload
 ) {
 }

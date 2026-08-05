@@ -11,6 +11,7 @@ public record CredentialRequestDto(
         String university,
         String duration,
         @BindParam("class") @JsonProperty("class") String credentialClass,
+        @BindParam("chip_uid") @JsonProperty("chip_uid") String chipUid,
         @BindParam("photo") MultipartFile photo
 ) {
 }
