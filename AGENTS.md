@@ -32,13 +32,15 @@ hardening unless explicitly asked — see Guard Rails.
 A physical certificate carries two independent identifiers of the same underlying
 credential record:
 - A **printed QR code** encoding the record's UUID (or a verify URL containing it).
-- An **embedded NFC chip**, identified by its factory-burned UID (read-only, not
-  written to).
+- An **embedded NFC chip** serving as an offline data carrier. It stores an encrypted
+  copy of the credential data, cryptographically bound to its factory UID via a digital
+  signature (to prevent cloning).
 
-An admin creates the record first (via a web app), reads the physical chip's UID at
-that time to link it to the record, then generates and downloads a QR-embedded PDF
-certificate for printing. A mobile app later resolves either the QR code or the NFC
-tap back to the same record.
+An admin creates the record first (via a web app). During enrollment, the system generates
+a signed, encrypted payload and writes it to the physical chip. It then generates and
+downloads a QR-embedded PDF certificate for printing. A mobile app later resolves either
+the QR code (online) or the NFC tap (offline data + online photo fetch) back to the
+credential record.
 
 ### 2.2 Data model (single table, POC — no normalization)
 Table: `credentials`
@@ -73,12 +75,14 @@ credential ID — the mobile app is the only medium that resolves it to a record
 linking, PDF download), but is not exposed via the QR path.
 
 - QR path: mobile scans QR → parses `cv://verify/{qrToken}` → extracts `qrToken` →
-  `GET /credentials/by-qr/{qrToken}`
-- NFC path: mobile taps chip → reads factory UID → `GET /credentials/by-chip/{chipUid}`
+  `GET /credentials/by-qr/{qrToken}` (online verification).
+- NFC path: mobile taps chip → authenticates with custom keys → reads raw data blocks →
+  decrypts payload → verifies digital signature against chip UID → parses offline credential data.
+  It then optionally fetches the photo online via `GET /credentials/{id}/photo`.
 
-Both endpoints return the same `CredentialResponseDto` shape for a linked record, and
-both return a not-found response when no matching record exists — the mobile app must
-treat these identically regardless of which path resolved them.
+Both verification paths result in rendering the same credential data, but the NFC path
+must work completely offline for text fields, while the QR path relies entirely on
+the backend.
 
 ### 2.5 Tech stack assumptions (adjust only if asked)
 - Backend: Java, Spring Boot, REST, Postgres or MySQL. **(built)**
@@ -107,18 +111,19 @@ requirement.
   fetch by `chip_uid`, list all.
 - Return consistent JSON shape across all fetch endpoints.
 
-**Phase 2 — Local reader bridge agent**
+**Phase 2 — Local reader bridge agent (Update)**
 - Standalone Java app, no dependency on the backend or frontend framework.
-- Expose one endpoint that triggers a chip read and returns `{ chip_uid: string }`
-  (or an error if no card present / reader unavailable).
-- Keep it a single-purpose utility — do not fold backend logic into it.
+- Expose an endpoint that triggers a chip write: it takes the signed, encrypted payload
+  from the admin app and writes it to the chip's raw sectors (MIFARE Classic/Plus)
+  using custom access keys, returning success or failure.
+- Expose a "reset chip" endpoint that authenticates with the custom keys, zeroes out the payload, and restores the sector keys to their factory default (`FF FF FF FF FF FF`) so test cards can be reused.
 
-**Phase 3 — Admin web app**
+**Phase 3 — Admin web app (Update)**
 - Form to create a credential (all fields from 2.2 except `id`, `chip_uid`).
-- "Read Chip" action calling the local bridge agent, populating `chip_uid` into the
-  form before submission.
-- On save, call backend to create the record; backend generates `id` and the QR
-  (encoding the `id`, or a verify URL containing it — pick one and be consistent).
+- On save, call backend to create the record; backend generates a digitally signed and
+  encrypted payload (binding the data to the chip UID).
+- Admin app calls the bridge agent to write this payload to the chip.
+- Add a "Reset Test Card" action button on the admin console that calls the bridge agent's reset endpoint to wipe a previously enrolled card.
 - Dashboard listing existing records with a "Download PDF" action per record.
 
 **Phase 4 — PDF generation**
@@ -158,12 +163,11 @@ QR handling:
 NFC handling:
 - Use Android's NFC foreground dispatch to detect a tapped tag while the scan screen
   is active.
-- Read the tag's factory UID (do not attempt to read/write NDEF content — the chip UID
-  itself is the identifier, per the existing "do not write to the chip" guard rail).
-- Format the UID consistently with however the bridge agent/admin app captured it at
-  enrollment time (matching string case/format is critical — confirm the exact string
-  format the bridge agent produces before assuming a default).
-- Call `GET /credentials/by-chip/{chipUid}`.
+- Authenticate with the chip using custom keys, read the raw data blocks, decrypt the
+  payload, and verify the digital signature (Ed25519/ECDSA) against the chip's physical UID.
+- If signature is valid, display the offline data immediately, and asynchronously fetch
+  the photo online. Reject if signature or UID mismatch (anti-cloning).
+- Do not rely on an online fetch for the core text data when tapping the chip.
 
 Error handling:
 - Distinguish three outcomes on both paths: successful match (show result screen),
@@ -212,7 +216,13 @@ Project-specific notes on top of that skill:
 - **Do not introduce additional entities/tables.** One `credentials` table only, per
   2.2. Resist normalizing into `student` / `university` / `course` tables even if it
   seems cleaner.
-- **Do not write to the NFC chip.** Only read the factory UID. No NDEF writing logic.
+- **Mandatory Offline NFC Verification.** The NFC chip must carry the credential payload.
+  You must write this data to the chip during enrollment.
+- **Cryptographic Binding (Anti-Cloning).** The payload written to the chip must be signed
+  by the backend (e.g. Ed25519/ECDSA) incorporating the chip's factory UID, to prevent
+  copying valid ciphertext to blank cards.
+- **Data Obfuscation.** Generic NFC tools must not be able to read the plain text data.
+  The data must be encrypted, and the chip sectors should ideally be locked with custom keys.
 - **Do not attempt browser-to-PC/SC access.** Any design that tries to call
   `javax.smartcardio` or a PC/SC driver directly from browser JavaScript is invalid —
   route through the local bridge agent instead.
