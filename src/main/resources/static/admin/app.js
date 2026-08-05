@@ -4,6 +4,7 @@ const form = document.querySelector("#credentialForm");
 const rows = document.querySelector("#credentialRows");
 const chipUidInput = document.querySelector("#chipUid");
 const readChipButton = document.querySelector("#readChipButton");
+const resetCardButton = document.querySelector("#resetCardButton");
 const saveButton = document.querySelector("#saveButton");
 const resetButton = document.querySelector("#resetButton");
 const refreshButton = document.querySelector("#refreshButton");
@@ -11,6 +12,7 @@ const formStatus = document.querySelector("#formStatus");
 const bridgeStatus = document.querySelector("#bridgeStatus");
 
 readChipButton.addEventListener("click", readChip);
+resetCardButton.addEventListener("click", resetCard);
 refreshButton.addEventListener("click", loadCredentials);
 resetButton.addEventListener("click", resetForm);
 form.addEventListener("submit", saveCredential);
@@ -40,6 +42,24 @@ async function readChip() {
     }
 }
 
+async function resetCard() {
+    setBridgeStatus("Resetting chip...", "");
+    resetCardButton.disabled = true;
+
+    try {
+        const payload = await sendJson("http://localhost:9000/reset-chip", "POST", {
+            chip_uid: chipUidInput.value || ""
+        });
+        setBridgeStatus("Chip reset successfully", "ok");
+        setFormStatus("Card is blank.", "ok");
+    } catch (error) {
+        setBridgeStatus("Bridge error", "error");
+        setFormStatus(error.message, "error");
+    } finally {
+        resetCardButton.disabled = false;
+    }
+}
+
 async function saveCredential(event) {
     event.preventDefault();
     setFormStatus("Saving...", "");
@@ -47,15 +67,17 @@ async function saveCredential(event) {
 
     const data = new FormData(form);
     const chipUid = data.get("chip_uid");
-    data.delete("chip_uid");
 
     try {
         let saved = await sendFormData("/credentials", data);
 
-        if (chipUid) {
-            saved = await sendJson(`/credentials/${saved.id}/chip`, "PATCH", {
-                chip_uid: chipUid
+        if (saved.offline_payload && chipUid) {
+            setFormStatus("Writing to chip...", "");
+            await sendJson("http://localhost:9000/write-chip", "POST", {
+                chip_uid: chipUid,
+                payload: saved.offline_payload
             });
+            setBridgeStatus("Chip written", "ok");
         }
 
         setFormStatus(`Saved ${saved.first_name} ${saved.last_name}.`, "ok");

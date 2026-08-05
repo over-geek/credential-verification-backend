@@ -46,7 +46,8 @@ class CredentialControllerTest {
                 "ICPS University",
                 "2021 - 2024",
                 "First Class",
-                true
+                true,
+                null
         );
 
         when(credentialService.createCredential(any())).thenReturn(response);

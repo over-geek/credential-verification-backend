@@ -9,6 +9,7 @@ import com.icps.credential_verification.exception.DuplicateChipUidException;
 import com.icps.credential_verification.exception.ResourceNotFoundException;
 import com.icps.credential_verification.model.Credential;
 import com.icps.credential_verification.repository.CredentialRepository;
+import com.icps.credential_verification.service.CryptoService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,6 +35,9 @@ class CredentialServiceImplTest {
     @Mock
     private CredentialRepository credentialRepository;
 
+    @Mock
+    private CryptoService cryptoService;
+
     @InjectMocks
     private CredentialServiceImpl credentialService;
 
@@ -53,6 +57,7 @@ class CredentialServiceImplTest {
                 "ICPS University",
                 "2021 - 2024",
                 "First Class",
+                "04AABBCCDD",
                 photoFile
         );
 
@@ -66,7 +71,7 @@ class CredentialServiceImplTest {
         CredentialResponseDto response = credentialService.createCredential(request);
 
         assertThat(response.id()).isEqualTo(id);
-        assertThat(response.chipUid()).isNull();
+        assertThat(response.chipUid()).isEqualTo("04AABBCCDD");
         assertThat(response.firstName()).isEqualTo("Ada");
         assertThat(response.credentialClass()).isEqualTo("First Class");
         assertThat(response.hasPhoto()).isTrue();
@@ -89,6 +94,7 @@ class CredentialServiceImplTest {
                 "ICPS University",
                 "2021 - 2024",
                 "First Class",
+                null,
                 emptyPhoto
         );
 
