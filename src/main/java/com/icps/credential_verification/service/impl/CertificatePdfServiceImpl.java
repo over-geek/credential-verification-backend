@@ -10,6 +10,7 @@ import com.icps.credential_verification.exception.ResourceNotFoundException;
 import com.icps.credential_verification.model.Credential;
 import com.icps.credential_verification.repository.CredentialRepository;
 import com.icps.credential_verification.service.CertificatePdfService;
+import com.icps.credential_verification.service.CryptoService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -38,9 +39,11 @@ public class CertificatePdfServiceImpl implements CertificatePdfService {
     private static final PDFont BODY_BOLD_FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
     private final CredentialRepository credentialRepository;
+    private final CryptoService cryptoService;
 
-    public CertificatePdfServiceImpl(CredentialRepository credentialRepository) {
+    public CertificatePdfServiceImpl(CredentialRepository credentialRepository, CryptoService cryptoService) {
         this.credentialRepository = credentialRepository;
+        this.cryptoService = cryptoService;
     }
 
     @Override
@@ -63,7 +66,8 @@ public class CertificatePdfServiceImpl implements CertificatePdfService {
             PDPage page = new PDPage(PDRectangle.LETTER);
             document.addPage(page);
 
-            BufferedImage qrImage = createQrImage("cv://verify/" + credential.getQrToken());
+            String qrPayload = buildQrPayload(credential);
+            BufferedImage qrImage = createQrImage("cv://data/" + qrPayload);
             PDImageXObject qrCode = LosslessFactory.createFromImage(document, qrImage);
 
             try (PDPageContentStream content = new PDPageContentStream(document, page)) {
@@ -188,5 +192,32 @@ public class CertificatePdfServiceImpl implements CertificatePdfService {
 
     private String buildFilename(Credential credential) {
         return "certificate-" + credential.getId() + ".pdf";
+    }
+
+    private String buildQrPayload(Credential credential) {
+        try {
+            String dataJson = String.format(
+                    "{\"id\":\"%s\",\"first_name\":\"%s\",\"last_name\":\"%s\",\"course\":\"%s\",\"university\":\"%s\",\"duration\":\"%s\",\"class\":\"%s\"}",
+                    credential.getId().toString(),
+                    safePdfText(credential.getFirstName()),
+                    safePdfText(credential.getLastName()),
+                    safePdfText(credential.getCourse()),
+                    safePdfText(credential.getUniversity()),
+                    safePdfText(credential.getDuration()),
+                    safePdfText(credential.getCredentialClass())
+            );
+            
+            String signature = cryptoService.signQrPayload(dataJson);
+            
+            String wrapperJson = String.format(
+                    "{\"data\":%s,\"signature\":\"%s\"}",
+                    dataJson,
+                    signature
+            );
+            
+            return java.util.Base64.getEncoder().encodeToString(wrapperJson.getBytes("UTF-8"));
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build QR payload", e);
+        }
     }
 }

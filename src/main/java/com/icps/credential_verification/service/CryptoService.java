@@ -10,4 +10,12 @@ public interface CryptoService {
      * @return The raw binary offline payload ready to be written to the chip
      */
     byte[] encryptAndSign(String jsonPayload, String chipUid) throws Exception;
+
+    /**
+     * Signs the plain text JSON payload for QR codes using Ed25519.
+     *
+     * @param jsonPayload The JSON credential data to sign
+     * @return The Base64 encoded signature
+     */
+    String signQrPayload(String jsonPayload) throws Exception;
 }

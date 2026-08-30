@@ -65,4 +65,16 @@ public class CryptoServiceImpl implements CryptoService {
 
         return buffer.array();
     }
+
+    @Override
+    public String signQrPayload(String jsonPayload) throws Exception {
+        byte[] payloadBytes = jsonPayload.getBytes("UTF-8");
+        
+        Signature sig = Signature.getInstance("Ed25519");
+        sig.initSign(signingKey);
+        sig.update(payloadBytes);
+        byte[] signature = sig.sign();
+        
+        return Base64.getEncoder().encodeToString(signature);
+    }
 }
